@@ -87,6 +87,10 @@ function! s:dasherize(string)
   return string
 endfunction
 
+function! s:yaml_formatted_date()
+  return strftime("%Y-%m-%d %H:%M:%S %z")
+endfunction
+
 " }}}
 
 " Post functions {{{
@@ -152,7 +156,7 @@ function! s:create_post(cmd, ...)
 
     let date = strftime('%a %b %d %T %z %Y')
     silent! %s/JEKYLL_TITLE/\=s:post_title(title)/g
-    silent! %s/JEKYLL_DATE/\=date/g
+    silent! %s/JEKYLL_DATE/\=s:yaml_formatted_date()/g
   endif
 endfunction
 
@@ -178,8 +182,8 @@ function! s:open_post(create, cmd, ...)
 endfunction
 
 " Return the command used to build the blog.
-function! s:jekyll_bin()
-  let bin = 'jekyll build '
+function! s:jekyll_bin(subcmd)
+  let bin = 'jekyll '.a:subcmd.' '
 
   if filereadable(b:jekyll_root_dir.'/Gemfile')
     let bin = 'bundle exec '.bin
@@ -194,11 +198,29 @@ function! s:jekyll_build(cmd)
   if exists('g:jekyll_build_command') && ! empty(g:jekyll_build_command)
     let bin = g:jekyll_build_command
   else
-    let bin = s:jekyll_bin()
+    let bin = s:jekyll_bin('build')
   endif
 
   echo 'Building, this may take a moment'
   let lines = system(bin.' '.a:cmd)
+
+  if v:shell_error != 0
+    return s:error('Build failed')
+  else
+    echo 'Site built!'
+  endif
+endfunction
+
+" Return 'jekyll' or 'bundle exec jekyll'
+function! s:jekyll_serve(cmd)
+  if exists('g:jekyll_serve_command') && ! empty(g:jekyll_serve_command)
+    let bin = g:jekyll_serve_command
+  else
+    let bin = s:jekyll_bin('serve')
+  endif
+
+  echo 'Serving at http://localhost:4000 ...'
+  let lines = system(bin.' -P 4000 '.a:cmd)
 
   if v:shell_error != 0
     return s:error('Build failed')
@@ -228,6 +250,7 @@ function! s:register_commands()
   endfor
 
   call s:define_command('-nargs=* Jbuild call s:jekyll_build("<args>")')
+  call s:define_command('-nargs=* Jserve call s:jekyll_serve("<args>")')
 endfunction
 
 " Try to locate the _posts directory
